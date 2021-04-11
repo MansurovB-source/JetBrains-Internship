@@ -14,10 +14,24 @@ import java.util.concurrent.*;
  * To solve this problem, we used the Kahn's algorithm for topological sorting
  */
 public class TaskExecutor {
+
     private final ExecutorService service;
+
+    /**
+     * Adjacency list
+     */
     private final Map<Task, HashSet<Task>> graph = new HashMap<>();
+
+    /**
+     * Degree of all vertices
+     */
     private final Map<Task, Integer> inDegree = new HashMap<>();
-    private final Map<Integer, HashSet<Task>> taskWithZeroInDegree = new HashMap<>();
+
+    /**
+     * Vertexes by level
+     * Elements of the same level can be parallelized.
+     */
+    private final Map<Integer, HashSet<Task>> tasksByLevel = new HashMap<>();
 
     public TaskExecutor() {
         service = Executors.newCachedThreadPool();
@@ -43,8 +57,8 @@ public class TaskExecutor {
         levelAssigner();
 
         for (int i = graph.size() - 1; i >= 0; i--) {
-            if (!taskWithZeroInDegree.get(i).isEmpty()) {
-                for (Task task : taskWithZeroInDegree.get(i)) {
+            if (!tasksByLevel.get(i).isEmpty()) {
+                for (Task task : tasksByLevel.get(i)) {
                     Callable<Void> c = () -> {
                         task.execute();
                         return null;
@@ -71,16 +85,17 @@ public class TaskExecutor {
     public void levelAssigner() {
         int counter = 0;
         for (Task ignored : inDegree.keySet()) {
-            HashSet<Task> WithZeroInDegree = new HashSet<>();
+            HashSet<Task> origin = new HashSet<>();
             for (Map.Entry<Task, Integer> entry : inDegree.entrySet()) {
                 if (entry.getValue() == 0) {
-                    WithZeroInDegree.add(entry.getKey());
+                    origin.add(entry.getKey());
+                    // -1 deleted vertex
                     inDegree.put(entry.getKey(), -1);
                 }
             }
-            taskWithZeroInDegree.put(counter, WithZeroInDegree);
+            tasksByLevel.put(counter, origin);
 
-            for (Task task : taskWithZeroInDegree.get(counter)) {
+            for (Task task : tasksByLevel.get(counter)) {
                 HashSet<Task> innerTasks = graph.get(task);
                 for (Task innerTask : innerTasks) {
                     inDegree.put(innerTask, inDegree.get(innerTask) - 1);
@@ -91,24 +106,18 @@ public class TaskExecutor {
     }
 
     /**
-     * From the collection of tasks, we will make an adjacency sheet
+     * From the collection of tasks, we will make an adjacency list
      *
      * @param tasks - the collection from which the adjacency list will be constructed
      */
     public void graphMaker(Collection<Task> tasks) {
         for (Task task : tasks) {
-            if (!graph.containsKey(task)) {
-                HashSet<Task> set = new HashSet<>();
-                graph.put(task, set);
-            }
-
-            if (task.dependencies() != null) {
-                if (!task.dependencies().isEmpty()) {
-                    for (Task innerTask : task.dependencies()) {
-                        graph.get(task).add(innerTask);
-                    }
-                    graphMaker(task.dependencies());
+            graph.putIfAbsent(task, new HashSet<>());
+            if (task.dependencies() != null && !task.dependencies().isEmpty()) {
+                for (Task innerTask : task.dependencies()) {
+                    graph.get(task).add(innerTask);
                 }
+                graphMaker(task.dependencies());
             }
         }
     }

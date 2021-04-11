@@ -8,24 +8,24 @@ import java.util.List;
  *
  * @author Behruz Mansurov
  */
-public class TaskImplementation_1 implements Task {
+public class TaskImplementation implements Task {
     private int id;
-    private List<Task> tasks;
+    private Collection<Task> dependencies;
 
-    public TaskImplementation_1() {
+    public TaskImplementation() {
     }
 
-    public TaskImplementation_1(int id) {
+    public TaskImplementation(int id) {
         this.id = id;
     }
 
-    public TaskImplementation_1(List<Task> tasks) {
-        this.tasks = tasks;
+    public TaskImplementation(Collection<Task> dependencies) {
+        this.dependencies = dependencies;
     }
 
-    public TaskImplementation_1(int id, List<Task> tasks) {
+    public TaskImplementation(int id, Collection<Task> dependencies) {
         this.id = id;
-        this.tasks = tasks;
+        this.dependencies = dependencies;
     }
 
 
@@ -37,12 +37,11 @@ public class TaskImplementation_1 implements Task {
 
     @Override
     public Collection<Task> dependencies() {
-        return this.tasks;
+        return this.dependencies;
     }
 
-
-    public void setTasks(List<Task> tasks) {
-        this.tasks = tasks;
+    public void setDependencies(List<Task> tasks) {
+        this.dependencies = dependencies;
     }
 
     public void setId(int id) {
@@ -51,9 +50,5 @@ public class TaskImplementation_1 implements Task {
 
     public int getId() {
         return id;
-    }
-
-    public List<Task> getTasks() {
-        return tasks;
     }
 }
