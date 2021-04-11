@@ -8,10 +8,16 @@ import java.util.concurrent.*;
  *
  * @author Behruz Mansurov
  */
+
+/**
+ * The problem was solved with the precondition that there are no cycles
+ * To solve this problem, we used the Kahn's algorithm for topological sorting
+ */
 public class TaskExecutor {
-    public ExecutorService service;
-    private Set<Integer> used = new HashSet<>();
-    private List<Task> tasks = new ArrayList<>();
+    private final ExecutorService service;
+    private final Map<Task, HashSet<Task>> graph = new HashMap<>();
+    private final Map<Task, Integer> inDegree = new HashMap<>();
+    private final Map<Integer, HashSet<Task>> taskWithZeroInDegree = new HashMap<>();
 
     public TaskExecutor() {
         service = Executors.newCachedThreadPool();
@@ -21,70 +27,108 @@ public class TaskExecutor {
         this.service = service;
     }
 
-    void execute(Collection<Task> tasks) throws InterruptedException, ExecutionException {
+    /**
+     * The main executor which parallelize tasks
+     *
+     * @param tasks - list of tasks to be completed
+     * @throws ExecutionException   - if the computation threw an exception
+     * @throws InterruptedException - if the current thread was interrupted while waiting
+     */
+    public void execute(Collection<Task> tasks) throws ExecutionException, InterruptedException {
         List<Callable<Void>> callables = new ArrayList<>();
-        List<Future<Void>> results = new ArrayList<>();
-        for (Task task : tasks) {
-            Callable<Void> c = () -> {
-                if (task.dependencies() != null) {
-                    execute(task.dependencies());
+        List<Future<Void>> futures = new ArrayList<>();
+
+        graphMaker(tasks);
+        inDegreeMaker();
+        levelAssigner();
+
+        for (int i = graph.size() - 1; i >= 0; i--) {
+            if (!taskWithZeroInDegree.get(i).isEmpty()) {
+                for (Task task : taskWithZeroInDegree.get(i)) {
+                    Callable<Void> c = () -> {
+                        task.execute();
+                        return null;
+                    };
+                    callables.add(c);
                 }
-                task.execute();
-                return null;
-            };
 
-            callables.add(c);
-        }
+                for (Callable<Void> callable : callables) {
+                    futures.add(service.submit(callable));
+                }
+                for (Future<Void> future : futures) {
+                    future.get();
+                }
 
-        for (Callable<Void> callable : callables) {
-            synchronized (this) {
-                results.add(service.submit(callable));
+                callables.clear();
+                futures.clear();
             }
-        }
-
-        for (Future<Void> result : results) {
-            result.get();
         }
     }
 
-//    public void dfs(Task task) {
-//        used.add(task.hashCode());
-//        Collection<Task> innerTasks = task.dependencies();
-//        if (task.dependencies() != null || !innerTasks.isEmpty()) {
-//            for (Task t : innerTasks) {
-//                if (!used.contains(t.hashCode())) {
-//                    dfs(t);
-//                }
-//            }
-//        }
-//
-//        tasks.add(task);
-//    }
-//
-//    public void topological_sort(List<Task> tasks) {
-//        for (Task task : tasks) {
-//            if (!used.contains(task.hashCode())) {
-//                dfs(task);
-//            }
-//        }
-//    }
-
-    public static void main(String[] args) {
-        TaskExecutor taskExecutor = new TaskExecutor();
-        List<Task> tasks = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            List<Task> innerTasks = new ArrayList<>();
-            for (int j = 0; j < 10; j++) {
-                innerTasks.add(new TaskImplementation_1(i * 10 + j));
+    /**
+     * Divides vertexes into dependent levels. Elements of the same level can be parallelized.
+     */
+    public void levelAssigner() {
+        int counter = 0;
+        for (Task ignored : inDegree.keySet()) {
+            HashSet<Task> WithZeroInDegree = new HashSet<>();
+            for (Map.Entry<Task, Integer> entry : inDegree.entrySet()) {
+                if (entry.getValue() == 0) {
+                    WithZeroInDegree.add(entry.getKey());
+                    inDegree.put(entry.getKey(), -1);
+                }
             }
-            tasks.add(new TaskImplementation_1(i * 100000, innerTasks));
+            taskWithZeroInDegree.put(counter, WithZeroInDegree);
+
+            for (Task task : taskWithZeroInDegree.get(counter)) {
+                HashSet<Task> innerTasks = graph.get(task);
+                for (Task innerTask : innerTasks) {
+                    inDegree.put(innerTask, inDegree.get(innerTask) - 1);
+                }
+            }
+            counter++;
         }
-        try {
-            taskExecutor.execute(tasks);
-            taskExecutor.service.shutdown();
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
-            //System.out.println(e.getMessage());
+    }
+
+    /**
+     * From the collection of tasks, we will make an adjacency sheet
+     *
+     * @param tasks - the collection from which the adjacency list will be constructed
+     */
+    public void graphMaker(Collection<Task> tasks) {
+        for (Task task : tasks) {
+            if (!graph.containsKey(task)) {
+                HashSet<Task> set = new HashSet<>();
+                graph.put(task, set);
+            }
+
+            if (task.dependencies() != null) {
+                if (!task.dependencies().isEmpty()) {
+                    for (Task innerTask : task.dependencies()) {
+                        graph.get(task).add(innerTask);
+                    }
+                    graphMaker(task.dependencies());
+                }
+            }
+        }
+    }
+
+    /**
+     * Calculates the degree of each vertex
+     */
+    public void inDegreeMaker() {
+        for (Map.Entry<Task, HashSet<Task>> entry : graph.entrySet()) {
+            if (!inDegree.containsKey(entry.getKey())) {
+                inDegree.put(entry.getKey(), 0);
+            }
+            HashSet<Task> set = entry.getValue();
+            for (Task task : set) {
+                if (!inDegree.containsKey(task)) {
+                    inDegree.put(task, 1);
+                } else {
+                    inDegree.put(task, inDegree.get(task) + 1);
+                }
+            }
         }
     }
 }

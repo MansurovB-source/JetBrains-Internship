@@ -28,9 +28,10 @@ public class TaskImplementation_1 implements Task {
         this.tasks = tasks;
     }
 
+
     @Override
     public void execute() {
-        System.out.println("Thread id: " + Thread.currentThread().getId() + " Task id: " + this.id);
+        System.out.println(" Task id: " + this.id);
         // TODO
     }
 

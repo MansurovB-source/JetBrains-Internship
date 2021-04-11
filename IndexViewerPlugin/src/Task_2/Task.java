@@ -12,4 +12,6 @@ public interface Task {
     void execute();
 
     Collection<Task> dependencies();
+
+    int getId();
 }
